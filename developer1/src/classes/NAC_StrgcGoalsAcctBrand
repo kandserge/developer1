@@ -1,0 +1,859 @@
+<!-- // Description  : Add Strategic Goals for Account and Brands -->       
+<!-- // July 23, 2016   : Serge Kandukuri T-420496 -->
+<apex:page id="pg" standardController="Strategic_Goal__c" extensions="NAC_StrgcGoalsAcctJCIBrandController">
+    <apex:includeScript value="{!URLFOR($Resource.jquery_AutocompleteSearchbox, 'jquery/js/jquery-1.7.2.min.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.jquery_AutocompleteSearchbox, 'jquery/js/jquery-ui-1.8.20.custom.min.js')}" />
+    <apex:stylesheet value="{!URLFOR($Resource.jquery_AutocompleteSearchbox, 'jquery/css/smoothness/jquery-ui-1.8.20.custom.css')}" />
+    <script src="/soap/ajax/29.0/connection.js" type="text/javascript"></script>
+    <script  src="/soap/ajax/29.0/apex.js" type="text/javascript"></script>
+    <!-- Here is the css styles that will be used for the progress bars -->
+    <style>
+        .progressBar{
+            background-color: #f8f8f8;
+            border:1px solid #DDDDDD;
+            height: 19px;
+            width: 450px;
+            -moz-border-radius: 5px; 
+            -webkit-border-radius: 5px;
+        }
+        .progress{
+            background-color: #F7B64B;
+            border:1px solid #E78F08;
+            height: 100%;
+            margin: -1px;
+            text-align: center;
+            -moz-border-radius: 5px; 
+            -webkit-border-radius: 5px;
+            line-height: 18px;
+        }
+    </style>
+    <apex:outputPanel id="scrptPnl">
+        <script>
+            $(function () {
+     
+                $('#icon_clear').fadeOut(300);
+                $(".data_field")
+                // do not navigate away from the field on tab when selecting an item
+                .bind("keydown", function (event) {
+    
+                    if ($(this).val().length > 0) {
+                        $('#icon_clear').fadeIn(300);
+                    } else {
+                        $('#icon_clear').fadeOut(300);
+                    }
+                    
+                    if (event.keyCode == '13') {
+                        if ($.trim(this.value).length >= searchCharacterLimit) {
+                            mapAccountandMarket();
+                        }
+                        return false;
+                    }
+                })
+                $('#icon_clear').on('click', function () {
+                    resetSearchStatus();
+                });
+            });
+            
+            // Changes start, T-437255 - Serge Kandukuri  
+            // disable Record Type dropdown on page load.
+            $(document).ready(function () {
+                if('{!$CurrentPage.parameters.objectName}'== 'parentProgram')
+                {
+                  disableSelectList();
+                }
+            });
+            //Changes ends, T-437255 - Serge Kandukuri  
+        
+            function mapAccountandMarket(){
+                var account = '';
+                var marketRgn = '';
+                account = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.acctName}').value;
+                marketRgn = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.acctMrktRgn}').value;
+                search(account,marketRgn);
+            }
+        
+            function resetHandller() {
+                $('.data_field').val('');
+                $('#icon_clear').fadeOut(300);
+            }
+        
+            function resetSearch() {
+                document.getElementById('{!$Component.StrategicGoalForm.pgBlk.acctName}').value = "";
+                document.getElementById('{!$Component.StrategicGoalForm.pgBlk.acctMrktRgn}').value = "";
+                document.getElementById('{!$Component.StrategicGoalForm.pgBlk.AccountName}').value = "";
+                document.getElementById('{!$Component.StrategicGoalForm.pgBlk.BrandName}').value = "";
+                document.getElementById('{!$Component.StrategicGoalForm.pgBlk.ProductName}').value = "";
+                
+                //Apex Function added for T-430964 , Serge Kandukuri-
+                clearAccountsList();
+            }
+            
+            function disableSelect(){
+                disableSelectList();
+                savePartial();
+                return false;
+            }
+        
+            
+        
+            var currentIndex = 1;
+            var numberOfLinks = 1;
+            var indexGlob ;
+            
+            function currentPage(){
+                index = indexGlob;
+                console.log('===index = ' + index); 
+                if(currentIndex != index) {
+                    currentIndex = parseInt(index);
+                    document.getElementById('{!$Component.StrategicGoalForm.pgBlk.rsltTbl.headerCheckId}').checked = false;
+                    getpage(currentIndex);
+                }
+            }
+        
+            function setCurrentPage(index) {
+                indexGlob = index;
+                /*if($('.checkClass:checked').length > 0 && '{!saveStat}' == 'partial' && currentIndex != index){
+                    if(confirm("Click OK to add accounts. Click Cancel if already added!")){
+                        addCurrSelectedAccts();
+                    }
+                    else{
+                        currentPage();
+                    }
+                }
+                else{*/
+                    currentPage();
+                //}
+            }
+            
+            function nextPage(){
+                if(currentIndex < numberOfLinks) {
+                    currentIndex = currentIndex + 1;
+                    document.getElementById('{!$Component.StrategicGoalForm.pgBlk.rsltTbl.headerCheckId}').checked = false;
+                    getpage(currentIndex);
+                 }
+            }
+        
+            function next() {
+                /*if($('.checkClass:checked').length > 0 && '{!saveStat}' == 'partial' && currentIndex < numberOfLinks){
+                    if(confirm("Click OK to Add Accounts. Click Cancel if already added!")){
+                        addNextSelectedAccts();
+                    }
+                    else{
+                        nextPage();
+                    }
+                }
+                else{*/
+                    nextPage();
+                //}  
+                
+                    
+            }
+            
+            function prevPage(){
+                if(currentIndex > 1) {
+                    currentIndex = currentIndex - 1;
+                    document.getElementById('{!$Component.StrategicGoalForm.pgBlk.rsltTbl.headerCheckId}').checked = false;
+                    getpage(currentIndex);
+                }
+            }
+        
+            function previous() {
+                /*if($('.checkClass:checked').length > 0 && '{!saveStat}' == 'partial' && currentIndex > 1){
+                    /*if(!confirm("Click OK to Add Accounts. Click Cancel if already added!")){
+                       addPrevSelectedAccts();
+                    }
+                    else{
+                        prevPage();
+                    }
+                }
+                else{*/
+                    prevPage();
+                //} 
+            }
+            
+            function setFormListPaginationStyle(cIndex, noLinks) {
+                currentIndex = cIndex;
+                numberOfLinks = noLinks;
+               if(currentIndex == numberOfLinks) {
+                   $("#nextDown").removeClass("next").addClass("notNext");
+               } else {
+                   $("#nextDown").removeClass("notNext").addClass("next");
+               }
+               if(currentIndex == 1) {
+                   $("#previousDown").removeClass("prev").addClass("notPrevious");
+               } else {
+                   $("#previousDown").removeClass("notPrevious").addClass("prev");
+               }
+            }
+            
+            
+        function selectAllCheckboxes(obj,receivedInputID){
+            var inputCheckBox = document.getElementsByClassName("checkClass");       
+            for(var i=0; i<inputCheckBox.length; i++){          
+                if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1){                                     
+                    inputCheckBox[i].checked = obj.checked;
+                }
+            }
+        }
+        
+        
+        
+        var newWin = null;
+        var selectedId = '';
+        var searchText = '';
+        
+        function openLookupPopup(obName,fieldName,fieldSetNameAPI) {
+            if(obName == 'Account'){
+                searchText = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.AccountName}').value;
+            }
+            else if(obName == 'Brand__c'){
+                searchText = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.BrandName}').value;
+            }
+            else{
+                searchText = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.ProductName}').value;
+            }
+             
+            var url = "/apex/NAC_OpenLookupPopup?Object=" + obName + "&fieldName=" + fieldName + "&searchText=" + searchText + "&fieldSetName=" + fieldSetNameAPI;
+            newWin = window.open(url, 'Popup', 'height=500,width=600,left=100,top=100,resizable=no,scrollbars=yes,toolbar=no,status=no');
+            if (window.focus) {
+                newWin.focus();
+            }  
+        }
+
+        
+        function getSelectedRecordId(selectedId,object){
+            displaySelectedRecord(selectedId,object);
+        }
+        
+        function resetSearchForNull(obj){
+            
+            if(obj.value == ''){
+                resetSearchNull();
+            }
+        }
+        
+        
+        function setChecked(){
+            var comp = document.getElementById('{!$Component.StrategicGoalForm.pgBlk.rsltTbl.headerCheckId}');
+            if ($('.checkClass:checked').length == $('.checkClass').length) {
+                $(comp).prop("checked", true);
+            }
+            else{
+                $(comp).prop("checked", false);
+            }
+        }
+        
+        
+        function checkOne(cb){  
+        
+            var selected=document.getElementById("{!$Component.StrategicGoalForm.hdnTotSeleced}").value;
+            if(cb.checked==true){
+                selected++;
+            }else{
+                selected--;
+            }
+            document.getElementById("{!$Component.StrategicGoalForm.hdnTotSeleced}").value=selected;
+            //document.getElementById("{!$Component.frm.pbContLead.olSelected}").innerHTML=selected;
+            
+            var selectedIds=document.getElementById("{!$Component.StrategicGoalForm.hdnSelectedIds}").value;
+            
+            if(selectedIds.indexOf(cb.title)!=-1){
+                selectedIds=selectedIds.replace(cb.title+",","");
+            }else{
+                selectedIds=selectedIds+cb.title+",";
+            }
+            
+            document.getElementById("{!$Component.StrategicGoalForm.hdnSelectedIds}").value=selectedIds;
+           
+        }
+    
+    
+        $(document).ready(function(){
+            setChecked();
+            $(document).on("change", ".checkClass",function(){
+                setChecked();
+            });        
+        });
+            
+        </script>  
+    </apex:outputPanel>
+    
+
+  <style>
+      .data_field{
+            padding-right:20px;
+            width:149px;
+         }
+         span#icon_clear{
+                font-family:verdana;
+                cursor:pointer;
+                color:#38468F;
+                font-weight:bold;
+                position:relative;
+                height:20px;
+                left:-18px;
+         }
+         span#icon_clear:hover{
+                color:#ccc;
+         }
+         .clickableHeader {
+            cursor: pointer;
+            width: 100%;
+        }
+        .paginatorWrap {
+            background: url("/img/alohaSkin/listFooter.png") repeat-x scroll 0 0 #F2F2F2;
+            border: 1px solid #EAEAEA;
+            background-color: #F3F3F3;
+            border-top: 1px solid #FFFFFF;
+            padding: 5px;
+        }
+        .noRecordsFound {
+            border: 1px solid #D4DADC;
+            padding: 4px;
+        }
+        .imageAsc {
+            background: url("/img/alohaSkin/sortArrows.png") no-repeat scroll left top transparent;
+            height: 8px;
+            margin: 0 5px;
+            vertical-align: -1px;
+            width: 7px;
+        }
+        .imageDesc {
+            background: url("/img/alohaSkin/sortArrows.png") no-repeat scroll 0px -12px transparent;
+            background-repeat: no-repeat;
+            height: 8px;
+            margin: 0 5px;
+            vertical-align: -1px;
+            width: 7px;
+        }
+        .noRowsHeader {
+            border: 1px solid rgb(221, 213, 213);
+            background-color: #f8f8f8;
+            background-image: none;
+            font-size: 0.9em;
+            font-weight: normal;
+            padding: 5px;
+        }
+        .standardHeight{
+               Height:22px;
+           }
+        .red{
+            background-color:#CC0000;
+            color:#000000;
+        }
+        ul li,ol li {
+            margin-left: 0px;
+            padding-left: 0;
+        }
+        .pagination {
+            font-size: 80%;
+        }
+        .pagination a,.pagination span {
+            display: block;
+            float: left;
+            padding: 0.3em 0.5em;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .pagination .current {
+            color: #e0262b;
+        }
+        .pagination .current:hover {
+            color: #e0262b;
+        }
+        .pagination .notPrevious,.pagination .notNext {
+            color: #999;
+            border-color: #999;
+            background: #fff;
+            text-decoration: none;
+        }
+        .headerRow {
+            background-color: #e3e3e3;
+        }
+        .odd {
+            background-color: #ffffff;
+            padding: 7px 0;
+            line-height: 16px;
+            font-size: 13px;
+            font-weight: normal;
+        }
+        .even {
+            background-color: #efefef;
+            padding: 7px 0;
+            line-height: 16px;
+            font-size: 13px;
+            font-weight: normal;
+        }
+    </style>
+    
+    <apex:form id="StrategicGoalForm" >
+    <apex:inputhidden id="hdnSelectedIds" value="{!strSelectedIds}"/>
+    <apex:inputhidden id="hdnTotSeleced" value="{!intTotalSelCL}"/>
+        <script>
+          // Character limits of search product for all fields
+          var searchCharacterLimit = 3;
+        </script>
+        
+         <apex:sectionHeader title="Strategic Initiative" />
+         <apex:pageBlock id="pgBlk">  
+            <apex:outputPanel id="pnlDisplayMsg">
+              <apex:pageMessages />
+            </apex:outputPanel>
+            <div class="progressBar" style="{!If(saveStat == 'goals Created', 'display:block', 'display:none')}">
+                <div class="progress" style="width: {!batchObj.percentComplete}%;">
+                    {!batchObj.percentComplete}%            
+                </div>
+            </div>
+            <apex:outputPanel rendered="{!If(saveStat == 'goals Created', true, false)}">
+                <apex:actionPoller action="{!displayBatchjJobStatus}" rerender="pgBlk" interval="5"/>
+            </apex:outputPanel>
+            <!-- Changes for Task, T-424168 starts, Serge Kandukuri   -->
+            <apex:outputpanel id="selectListPnl" rendered="{!if(saveStat == 'partial' || saveStat == '', true, false)}"> 
+                <apex:outputText value="Strategic Initiative Type " style="font-weight: bold;"></apex:outputText>
+                
+                <apex:selectList id="selectOptn" value="{!selectedOptionValue}" multiselect="false" size="1" onchange="javascript: setSelectOption(this.value);">
+                     <apex:selectOptions value="{!rectypes}"/>
+                </apex:selectList>
+                
+                <br/><br/><br/>
+            </apex:outputpanel> 
+<!--            Changes for Task, T-424168 ends, Serge Kandukuri   -->
+             
+            <apex:actionstatus id="fetchStatus">
+                <apex:facet name="start">
+                    <div class="waitingSearchDiv" id="el_loading"
+                        style="background-color: #fbfbfb; height: 100%; opacity: 0.65; width: 100%; z-index: 9000;">
+                    <div class="waitingHolder" style="top: 74.2px; width: 91px;">
+                    <img class="waitingImage" src="/img/loading.gif"
+                        title="Please Wait..." /> <span class="waitingDescription">Please
+                    Wait...</span></div>
+                    </div>
+                </apex:facet>
+            </apex:actionstatus>
+            
+            
+            <apex:outputpanel id="dtlsPnl">
+                <apex:pageBlockSection rendered="{!IF(saveStat != 'partial' && saveStat != 'review' && saveStat != 'goals Created' && selectedOptionValue != '', true, false)}">
+                    <apex:inputField value="{!strategicGoal.Name}" required="true" />
+                    <apex:inputField value="{!strategicGoal.Program__c}"/>
+                    <apex:inputField value="{!strategicGoal.Goal_Note__c}" rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <apex:inputField value="{!strategicGoal.Goal_Status__c}" required="true"/>
+                    <apex:inputField value="{!strategicGoal.Start_Dt__c}" required="true"/>
+                    <apex:inputField value="{!strategicGoal.Goal_Type__c}"  rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <apex:inputField value="{!strategicGoal.Completed_Dt__c}" rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <!--<apex:pageBlockSectionItem >
+                        <apex:outputLabel value="Record Type" for="strgRecordType"/>
+                        <apex:outputText value="{!selectedOptionName}" id="strgRecordType"/> 
+                    </apex:pageBlockSectionItem>-->
+                </apex:pageBlockSection>
+            </apex:outputpanel> 
+            
+            <apex:outputPanel id="dtlPnl2">
+                <!--Updated Rendered condition for Goal Note and Completed Date Output Field- T-437255 - Serge Kandukuri   -->
+                <apex:pageBlockSection rendered="{!IF(saveStat != 'goals Created' && (saveStat == 'partial' || saveStat == 'review') && selectedOptionValue != '', true, false)}">
+                    <apex:outputField value="{!strategicGoal.Name}"/>
+                    <apex:outputField value="{!strategicGoal.Program__c}"/>
+                    <apex:outputField value="{!strategicGoal.Goal_Note__c}" rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <apex:outputField value="{!strategicGoal.Goal_Status__c}"/>
+                    <apex:outputField value="{!strategicGoal.Start_Dt__c}"/>
+                    <apex:outputField value="{!strategicGoal.Goal_Type__c}" rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <apex:outputField value="{!strategicGoal.Completed_Dt__c}" rendered="{!selectedOptionName == 'Strategic Goal'}"/>
+                    <apex:outputField value="{!program.Action_Plan_Template__c}" rendered="{!selectedOptionName == 'Marketing Campaign'}"/>
+                    <!--<apex:pageBlockSectionItem >
+                        <apex:outputLabel value="Record Type" for="strgRecordType"/>
+                        <apex:outputText value="{!selectedOptionName}" id="strgRecordType"/> 
+                    </apex:pageBlockSectionItem>-->
+                </apex:pageBlockSection>
+            </apex:outputPanel>
+           
+            <apex:pageBlockButtons id="buttons" location="bottom">
+                <apex:actionRegion >
+                    <apex:outputPanel id="btnPnl">
+                        <apex:commandButton value="Save" onclick="return disableSelect()" rendered="{!IF(saveStat != 'partial' && saveStat != 'review' && saveStat != 'goals Created' && selectedOptionValue != '', true, false)}" />
+                        <apex:commandButton value="Cancel"  action="{!resetStartegyGoal}" status="fetchStatus" rerender="dtlsPnl,btnPnl,dtlPnl2,pnlDisplayMsg" 
+                            immediate="true" rendered="{!IF(saveStat != 'partial' && saveStat != 'review' && saveStat != 'goals Created' && selectedOptionValue != '', true, false)}"/>
+                    </apex:outputPanel>
+                 </apex:actionRegion>
+            </apex:pageBlockButtons>
+                
+           <br/><br/>
+          
+           <apex:outputPanel id="searchPnl">
+                <apex:outputPanel rendered="{!IF(saveStat == 'partial' && saveStat != 'goals Created', true, false)}">
+                  <apex:inputHidden id="lookupBrandId" value="{!brandId}"></apex:inputHidden>
+                  <apex:inputHidden id="lookupProductId" value="{!productId}"></apex:inputHidden>
+                  <table class="list" width="100%">
+                    <tr class="dataRow" onmouseout="javascript:hiOff(this)" onmouseover="javascript:hiOn(this)">
+                        <td class="labelCol" style="width:200px;" > Account Name </td>
+                        <td class="dataCell" >
+                             <apex:outputPanel id="accPnl">
+                                <apex:inputText title="Minimum three characters are required" value="{!accountNameToSearch}"  id="acctName" styleClass="data_field"/>
+                            </apex:outputPanel>
+                        </td>
+                       
+                        <td class="labelCol" style="width:200px;" > Market/Region</td>
+                        <td class="dataCell" >
+                             <apex:outputPanel >
+                                <apex:inputText title="Minimum three characters are required" value="{!mrktRgnToSearch}"  id="acctMrktRgn" styleClass="data_field"/>
+                            </apex:outputPanel>
+                        </td>
+                        
+                        <td class="labelCol" style="width:200px;" > Parent Account</td>
+                        <td class="dataCell" >
+                            <apex:inputText id="AccountName" value="{!selectedAcctParentName}"/>
+                            <a href="#" id="acc1_lkwgt" onclick="openLookupPopup('Account','Name','account_search_result');" tabindex="2" 
+                                title="Parent Lookup (New Window)" style="text-decoration: none;" >
+                                <img src="/s.gif" alt="Parent Lookup (New Window)" 
+                                class="lookupIcon" 
+                                onblur="this.className = 'lookupIcon';" 
+                                onfocus="this.className = 'lookupIconOn';" 
+                                onmouseout="this.className = 'lookupIcon';this.className = 'lookupIcon';" 
+                                onmouseover="this.className = 'lookupIconOn';this.className = 'lookupIconOn';" 
+                                title="Parent Lookup (New Window)"/>
+                             </a>
+                         </td>
+                    </tr>
+                    <tr class="dataRow" onmouseout="javascript:hiOff(this)" onmouseover="javascript:hiOn(this)">
+                        <td class="labelCol" style="width:200px;" > Brand Name</td>
+                        <td class="dataCell" >
+                            <apex:inputText id="BrandName" value="{!selectedBrandName}"/>
+                            <a href="#" id="acc2_lkwgt" onclick="openLookupPopup('Brand__c','Name','Brand_Search_Result');" tabindex="2" 
+                                title="Parent Lookup (New Window)" style="text-decoration: none;" >
+                                <img src="/s.gif" alt="Parent Lookup (New Window)" 
+                                class="lookupIcon" 
+                                onblur="this.className = 'lookupIcon';" 
+                                onfocus="this.className = 'lookupIconOn';" 
+                                onmouseout="this.className = 'lookupIcon';this.className = 'lookupIcon';" 
+                                onmouseover="this.className = 'lookupIconOn';this.className = 'lookupIconOn';" 
+                                title="Parent Lookup (New Window)"/>
+                             </a>
+                        </td>
+                        
+                        <td class="labelCol" style="width:200px;" > Product Name</td>
+                        <td class="dataCell" >
+                            <apex:inputText id="ProductName" value="{!selectedProductName}"/>
+                            <a href="#" id="acc3_lkwgt" onclick="openLookupPopup('Product2','Name','Product_Search_Result');" tabindex="2" 
+                                title="Parent Lookup (New Window)" style="text-decoration: none;" >
+                                <img src="/s.gif" alt="Parent Lookup (New Window)" 
+                                class="lookupIcon" 
+                                onblur="this.className = 'lookupIcon';" 
+                                onfocus="this.className = 'lookupIconOn';" 
+                                onmouseout="this.className = 'lookupIcon';this.className = 'lookupIcon';" 
+                                onmouseover="this.className = 'lookupIconOn';this.className = 'lookupIconOn';" 
+                                title="Parent Lookup (New Window)"/>
+                             </a>
+                        </td>
+                    <!--Changes for Task, T-429295 starts, Serge Kandukuri   -->   
+                        <td class="labelCol" style="width:200px;" >Type</td>
+                        <td class="dataCell" >
+                            <apex:selectList id="selectOptnAccRcrdType" value="{!selectedAcctRcrdType}" multiselect="false" size="1">
+                                <apex:selectOptions value="{!acctRectypes}"/>
+                            </apex:selectList> 
+                        </td>
+                    <!--Changes for Task, T-429295 ends, Serge Kandukuri   --> 
+                    </tr>
+                    <tr class="dataRow" onmouseout="javascript:hiOff(this)" onmouseover="javascript:hiOn(this)">
+                        <td class="labelCol" style="width:200px;" > Primary Channel </td>
+                        <td class="dataCell" >
+                             <apex:outputPanel >
+                                <apex:inputField value="{!objAccount.Primary_Channel__c}"  id="acctPrimaryChannel" styleClass="data_field"/>
+                            </apex:outputPanel>
+                        </td>
+                       
+                        <td class="labelCol" style="width:200px;" > Account Status </td>
+                        <td class="dataCell" >                            
+                            <apex:selectList id="selectAccStatus" value="{!selectedAcctStatus}" multiselect="false" size="1">
+                                <apex:selectOptions value="{!acctStatuses}"/>
+                            </apex:selectList> 
+                        </td>
+                        <td class="labelCol" style="width:200px;" > Brand Status </td>
+                        <td>
+                            <apex:selectList id="selectBrandStatus" value="{!selectedBrandStatus}" multiselect="false" size="1">
+                                <apex:selectOptions value="{!acctBrandStatuses}"/>
+                            </apex:selectList> 
+                        </td>
+                    </tr>
+                  </table>
+                </apex:outputPanel>
+            </apex:outputPanel>
+           
+         <!--Action Functions-->
+             <!-- <apex:actionFunction name="selectAll" action="{!selectAllRecords}" reRender="rsltPnl">
+                <apex:param value="" assignTo="{!isChecked}" name="checked" />
+             </apex:actionFunction> -->
+             
+             
+             <apex:actionFunction name="resetSearchNull" rerender="rsltPnl" oncomplete="mapAccountandMarket();"/>
+             <apex:actionFunction name="addNextSelectedAccts" rerender="rsltPnl" action="{!addSelected}" status="fetchStatus" onComplete="nextPage();"/>
+             <apex:actionFunction name="addCurrSelectedAccts" rerender="rsltPnl" action="{!addSelected}" status="fetchStatus" onComplete="currentPage();"/>
+             <apex:actionFunction name="addPrevSelectedAccts" rerender="rsltPnl" action="{!addSelected}" status="fetchStatus" onComplete="prevPage();"/>
+             
+             
+         <apex:actionFunction name="displaySelectedRecord" action="{!getSelectedRecord}" rerender="searchPnl, scrptPnlx"  oncomplete="mapAccountandMarket();">
+            <apex:param name="selectId" value="" assignTo="{!selectedId}" /> 
+            <apex:param name="object" value="" assignTo="{!objName}"/>
+         </apex:actionFunction>
+             
+         <apex:actionFunction name="getpage" action="{!getList}" rerender="rsltPnl" status="fetchStatus" oncomplete="setChecked();">
+            <apex:param value="" assignTo="{!selectedPageNumber}" name="cPageNumber" />
+         </apex:actionFunction>
+             
+         <apex:actionFunction name="savePartial" status="fetchStatus" action="{!savePartial}" 
+            rerender="searchPnl,searchPnl1,dtlsPnl,btnPnl,dtlPnl2,scrptPnl,rsltPnl,pnlDisplayMsg"/>       
+         
+         <apex:actionFunction action="{!addPaginationOnFormList}" name="search" reRender="scrptPnl,btnPnl,rsltPnl,StrategicGoalForm,pnlDisplayMsg" status="fetchStatus">
+            <apex:param name="account" value="" assignTo="{!accountNameToSearch}" />
+            <apex:param name="market" value="" assignTo="{!mrktRgnToSearch}" />
+         </apex:actionFunction>
+                
+         <apex:actionFunction name="resetSearchStatus" action="{!resetSearchStatus}" reRender="resultBlock" status="status" oncomplete="resetHandller();"/>
+        
+        <apex:actionFunction name="setSelectOption" action="{!setSelectedOption}" reRender="dtlsPnl,btnPnl,dtlPnl2" status="fetchStatus" immediate="true">
+                <apex:param name="selectedOption" assignTo="{!selectedOptionValue}" value=""/>
+        </apex:actionFunction>
+        
+        <!-- Apex Function added for T-430964 , Serge Kandukuri-->
+        <apex:actionFunction name="clearAccountsList" action="{!clearAccountsList}" reRender="rsltPnl" status="status"/>
+        
+        
+        <br/><br/>
+        <table width="100%">
+        <tr>
+        <td align="center">        
+        <apex:outputPanel id="botmBtnPnl">
+                <apex:commandButton status="fetchStatus" value="Run Query" onclick="mapAccountandMarket();" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                <apex:commandButton status="fetchStatus" value="Add Selected Accounts"  action="{!addSelected}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                <apex:commandButton status="fetchStatus" value="Add All Accounts"  onClick="addAllAccounts_JS();" disabled="{!!showAddAllAccountButton}"  
+                rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                
+                <apex:commandButton status="fetchStatus" value="Reset Search"  onclick="resetSearch()" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}"  rerender="scrhPanel,pnlDisplayMsg"/>
+           <!-- Changes Start - T-437258, Serge Kandukuri   -->
+                <apex:commandButton status="fetchStatus" value="Review Goals" action="{!reviewGoals}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created' && selectedOptionName = 'Strategic Goal'}"  oncomplete="disableSelectList();" rerender="pgBlk,pnlDisplayMsg,scrptPnl,selectListPnl,rsltPnl"/>
+                <apex:commandButton status="fetchStatus" value="Review Marketing Campaigns" action="{!reviewGoals}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created' && selectedOptionName == 'Marketing Campaign'}"  oncomplete="disableSelectList();" rerender="pgBlk,pnlDisplayMsg,scrptPnl"/>
+                <apex:commandButton status="fetchStatus" value="Add More Accounts" action="{!addMoreAccounts}" oncomplete="disableSelectList();" rendered="{!saveStat == 'review' && saveStat != 'goals Created'}"  rerender="pgBlk,pnlDisplayMsg,scrptPnl"/>
+           <!-- Changes Ends - T-437258, Serge Kandukuri   -->
+           
+                <apex:commandButton status="fetchStatus" value="Create Goals" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Strategic Goal'}"  rerender="pgBlk,pnlDisplayMsg"/>
+                <!--<apex:commandButton status="fetchStatus" value="Create Marketing Campaigns" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Marketing Campaign'}"  rerender="pgBlk,pnlDisplayMsg"/>-->
+                
+                <apex:commandButton status="fetchStatus" value="Create Marketing Campaigns" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Marketing Campaign'}"  />
+                
+                
+                <apex:commandButton status="fetchStatus" value="Create Action Plans" action="{!createActionPlans}" rendered="{!If(saveStat == 'goals Created' && isBatchJobCompeted, true, false)}"  rerender="pgBlk,pnlDisplayMsg"/>
+                <apex:commandButton status="fetchStatus" value="Done" action="/" rendered="{!saveStat == 'goals Created'}" immediate="true" rerender="pgBlk,pnlDisplayMsg"/>
+          </apex:outputPanel>
+          </td>
+          </tr>
+          </table>      
+        <apex:outputPanel id="rsltPnl">     
+            <br/><br/>    
+             <br/>
+                <apex:outputPanel rendered="{!saveStat == 'partial' && wrapaccountList.size == 0}" >
+                    <br/>
+                    <div class="noRowsHeader">No records to display</div>
+                </apex:outputPanel>
+                
+                <apex:outputPanel id="resultBlock" rendered="{!AND(saveStat == 'partial' || saveStat == 'review',wrapaccountList.size != 0,saveStat != 'goals Created')}" > 
+                    <table width="100%" >
+                    <tr>
+                    <td align="left">
+                        <apex:outputText value="Select" style="font-size:11px;font-weight:bold;color:black" rendered="{!IF(saveStat == 'partial',true, false)}"/>
+           
+                    </td>
+                    <td align="right">
+                    <table align="right">
+                                    <tr>
+                                    <td align="right">
+                                    <apex:outputLabel id="previousUp" rendered="{!!blnHasPrevious}" value="<<Previous" ></apex:outputLabel>
+                                    </td>
+                                    <td>
+                                    <apex:commandLink rendered="{!blnHasPrevious}" reRender="rsltPnl" value="<<Quick add & Previous" action="{!GoPreviousClick}" status="fetchStatus"/>
+                                    
+                                    </td>
+                                    <td>
+                                    </td>
+                                    
+                                    <!--<apex:repeat value="{!listOfLinks}"
+                                        var="number">
+                                        <a href="#"
+                                            class="{!IF(number == selectedPageNumber,'current','')}"
+                                            onClick="setCurrentPage('{!number}');return false;">{!number}</a>
+                                    </apex:repeat>-->
+                                    <td style="padding-top:5px;">
+                                    <apex:outputLabel id="nextUp" rendered="{!!blnHasNext}" value="Next>>" ></apex:outputLabel>
+                                    </td>
+                                    <td>
+                                    <apex:commandLink rendered="{!blnHasNext}" reRender="rsltPnl" value="Quick add & Next>>" action="{!GoNextClick}" status="fetchStatus"/>
+                                    </td>
+                                    
+                                    </tr>
+                                    </table>
+                                  </td>
+                                  </tr>
+                                  </table>  
+                                    
+                    <apex:pageBlockTable value="{!wrapaccountList}" var="waccl" id="rsltTbl">
+                        <apex:column >
+                            <apex:facet name="header">
+                                <apex:inputCheckbox id="headerCheckId" onclick="selectAllCheckboxes(this,'inputId');"/>
+                            </apex:facet>
+                            <apex:inputCheckbox value="{!waccl.isSelected}" title="{!waccl.accn.id}" onClick="checkOne(this);" id="inputId" styleclass="checkClass">
+                                
+                            </apex:inputCheckbox>
+                        </apex:column>
+                        <apex:column rendered="{!saveStat!='review'}">
+                            <apex:facet name="header">
+                                <apex:commandLink action="{!addPaginationOnFormList}"
+                                    value="Name{!IF(sortExpression=='acntname',IF(sortDirection='ASC',' ▼',' ▲'),'')}"
+                                    reRender="rsltPnl" status="fetchStatus">
+                                    <apex:param value="acntname" name="column"
+                                        assignTo="{!sortExpression}"></apex:param>
+                                </apex:commandLink>
+                            </apex:facet>
+                            
+                            <apex:outputLink value="/{!waccl.accn.id}">{!waccl.accn.name}</apex:outputLink>
+                        </apex:column>
+                        <apex:column rendered="{!saveStat='review'}">
+                            <apex:facet name="header">
+                                <apex:outputText value="Name"/>
+                            </apex:facet>
+                            <apex:outputLink value="/{!waccl.accn.id}">{!waccl.accn.name}</apex:outputLink>
+                        </apex:column>
+                        <apex:column value="{!waccl.accn.Market__c}"/>
+                        <apex:column value="{!waccl.accn.phone}"/>
+                        <apex:column >
+                            <apex:facet name="header">
+                                <apex:outputText value="Record Type"></apex:outputText>
+                            </apex:facet>
+                            <apex:outputText value="{!waccl.accn.RecordType.Name}"></apex:outputText>
+                        </apex:column>
+                    </apex:pageBlockTable>
+         
+                    <table width="100%" style="margin-top: 8px;">
+                        <tr>
+                            <td>&nbsp;</td>
+                            <td align="left" width="33%">
+                                <div id="curstate"><apex:outputText value="{!intFirstRecord} - {!intLastRecord} of {!intTotalRecords}" escape="false" /> </div>
+                            </td>
+                            
+                            <td
+                                style="float: right; vertical-align: middle; font-size: 15px;">
+                                <div id="PaginationDown" class="pagination">
+                                    <!--<a href="#" class="notPrevious" id="previousDown"
+                                        onClick="previous();return false;">&#60;&#60;Prev</a> <span
+                                        style="IF (isMorePrevious,'display: block; font-size: 14px; color: #5E82A3; ',' display: none;">
+                                    </span>-->
+                                    <table>
+                                    <tr>
+                                    <td style="padding-top:5px;">
+                                    <apex:outputLabel id="previousDown" rendered="{!!blnHasPrevious}" value="<<Previous" ></apex:outputLabel>
+                                    </td>
+                                    <td>
+                                    <apex:commandLink rendered="{!blnHasPrevious}" reRender="rsltPnl" value="<<Quick add & Previous" action="{!GoPreviousClick}" status="fetchStatus"/>
+                                    
+                                    </td>
+                                    <td>
+                                    </td>
+                                    
+                                    <!--<apex:repeat value="{!listOfLinks}"
+                                        var="number">
+                                        <a href="#"
+                                            class="{!IF(number == selectedPageNumber,'current','')}"
+                                            onClick="setCurrentPage('{!number}');return false;">{!number}</a>
+                                    </apex:repeat>-->
+                                    <td style="padding-top:5px;">
+                                    <apex:outputLabel id="nextDown" rendered="{!!blnHasNext}" value="Next>>" ></apex:outputLabel>
+                                    </td>
+                                    <td>
+                                    <apex:commandLink rendered="{!blnHasNext}" reRender="rsltPnl" value="Quick add & Next>>" action="{!GoNextClick}" status="fetchStatus"/>
+                                    </td>
+                                    
+                                    </tr>
+                                    </table>
+                                    <!--<span
+                                        style="IF (isMoreNext,'display: block; font-size: 14px; color: #5E82A3; ',' display: none;">
+                                    </span> <a id="nextDown" href="#" class="next"
+                                        onClick="next();return false;">Next&#62;&#62;</a>-->
+                                        
+                                        
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <script>setFormListPaginationStyle({!selectedPageNumber},{!intTotalPages});
+                    </script>
+                    <script>
+                             function addAllAccounts_JS () {
+                              if ({!intTotalRecords} != null && {!intTotalRecords} > {!maxRecords} ) {
+                                alert ( 'You cannot select more than {!maxRecords} accounts at a time. If you need to assign to more than {!maxRecords} accounts to a Parent Program, please complete the process in groups of {!maxRecords}. If a Parent Program is being used, the results will only show accounts that haven\'t already been selected prior.');
+                                return false;
+                              }
+                                var alertMessage = 'You are about to add this {!selectedOptionName} to {!intTotalRecords} accounts. Please confirm if you want to proceed';
+                                if( confirm( alertMessage )) {
+                                  addAllAccountAF ();
+                                }
+                            }
+                  </script>
+                  <apex:actionFunction name="addAllAccountAF" action="{!addAllAccounts}" />
+                </apex:outputPanel> 
+                
+                <apex:outputPanel rendered="{!IF(saveStat == 'goals Created',true,false)}">
+                    <apex:pageBlockTable value="{!stgGoalList}" var="goals">
+                        <apex:column rendered="{!selectedOptionName = 'Strategic Goal'}">    
+                            <apex:facet name="header">
+                                <apex:outputLabel id="headerGoal" value="Strategic Goal"/>
+                             </apex:facet>    
+                            <apex:outputLink value="/{!goals.Id}">{!goals.Name}</apex:outputLink>
+                        </apex:column>
+                        <!-- Changes Start - T-437258, Serge Kandukuri   -->    
+                        <apex:column rendered="{!selectedOptionName = 'Marketing Campaign'}">    
+                            <apex:facet name="header">
+                                <apex:outputLabel id="marketingCampaign" value="Marketing Campaign"/>
+                             </apex:facet>    
+                            <apex:outputLink value="/{!goals.id}">{!goals.name}</apex:outputLink>
+                        </apex:column>
+                         <!-- Changes Ends - T-437258, Serge Kandukuri   -->  
+                        <apex:column value="{!goals.Acct__c}"/>
+                        
+                    </apex:pageBlockTable>
+                </apex:outputPanel>
+             </apex:outputPanel> 
+<!--           -->
+ 
+         <apex:pageBlockButtons id="pgblkButtons" location="top">
+
+                       <apex:outputPanel id="botmBtnPnl">
+                            <apex:commandButton status="fetchStatus" value="Run Query" onclick="mapAccountandMarket();" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                            <apex:commandButton status="fetchStatus" value="Add Selected Accounts"  action="{!addSelected}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                            <apex:commandButton status="fetchStatus" value="Add All Accounts"  onClick="addAllAccounts_JS();" disabled="{!!showAddAllAccountButton}"  
+                            rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}" rerender="dtlsPnl,dtlPnl2,btnPnl,scrhPanel,pnlDisplayMsg"/>
+                            
+                            <apex:commandButton status="fetchStatus" value="Reset Search"  onclick="resetSearch()" rendered="{!saveStat == 'partial' && saveStat != 'goals Created'}"  rerender="scrhPanel,pnlDisplayMsg"/>
+                       <!-- Changes Start - T-437258, Serge Kandukuri   -->
+                            <apex:commandButton status="fetchStatus" value="Review Goals" action="{!reviewGoals}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created' && selectedOptionName = 'Strategic Goal'}"  oncomplete="disableSelectList();" rerender="pgBlk,pnlDisplayMsg,scrptPnl,selectListPnl,rsltPnl"/>
+                            <apex:commandButton status="fetchStatus" value="Review Marketing Campaigns" action="{!reviewGoals}" rendered="{!saveStat == 'partial' && saveStat != 'goals Created' && selectedOptionName == 'Marketing Campaign'}"  oncomplete="disableSelectList();" rerender="pgBlk,pnlDisplayMsg,scrptPnl"/>
+                            <apex:commandButton status="fetchStatus" value="Add More Accounts" action="{!addMoreAccounts}" oncomplete="disableSelectList();" rendered="{!saveStat == 'review' && saveStat != 'goals Created'}"  rerender="pgBlk,pnlDisplayMsg,scrptPnl"/>
+                       <!-- Changes Ends - T-437258, Serge Kandukuri   -->
+                       
+                            <apex:commandButton status="fetchStatus" value="Create Goals" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Strategic Goal'}"  rerender="pgBlk,pnlDisplayMsg"/>
+                            <!--<apex:commandButton status="fetchStatus" value="Create Marketing Campaigns" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Marketing Campaign'}"  rerender="pgBlk,pnlDisplayMsg"/>-->
+                            
+                            <apex:commandButton status="fetchStatus" value="Create Marketing Campaigns" action="{!createGoals}" rendered="{!saveStat == 'review' && saveStat != 'goals Created' && selectedOptionName = 'Marketing Campaign'}"  />
+                            
+                            
+                            <apex:commandButton status="fetchStatus" value="Create Action Plans" action="{!createActionPlans}" rendered="{!If(saveStat == 'goals Created' && isBatchJobCompeted, true, false)}"   rerender="pgBlk,pnlDisplayMsg"/>
+                            <apex:commandButton status="fetchStatus" value="Done" action="/" rendered="{!saveStat == 'goals Created'}" immediate="true" rerender="pgBlk,pnlDisplayMsg"/>
+                      </apex:outputPanel>
+             </apex:pageBlockButtons> 
+            
+<!--            -->
+        </apex:pageBlock> 
+    </apex:form>
+    <Script>
+        disableSelectList();
+        function disableSelectList(){
+            document.getElementById('{!$Component.StrategicGoalForm.pgBlk.selectOptn}').disabled = true;
+            return false;
+        }
+    </script>
+</apex:page>
